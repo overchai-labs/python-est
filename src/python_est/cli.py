@@ -41,7 +41,7 @@ def start(ctx: click.Context, config: Path) -> None:
     """Start the EST server"""
 
     console.print(Panel.fit(
-        "[bold blue]🚀 Python-EST Server[/bold blue]\n"
+        "[bold blue]Python-EST Server[/bold blue]\n"
         "[cyan]Professional RFC 7030 EST Protocol Implementation[/cyan]",
         border_style="blue"
     ))
@@ -105,7 +105,7 @@ def init(host: str, port: int, cert_dir: Path) -> None:
     """Initialize EST server configuration"""
 
     console.print(Panel.fit(
-        "[bold green]🔧 EST Server Initialization[/bold green]\n"
+        "[bold green]EST Server Initialization[/bold green]\n"
         "[cyan]Setting up your EST server environment[/cyan]",
         border_style="green"
     ))

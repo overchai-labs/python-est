@@ -252,6 +252,8 @@ class ESTServer:
             Supports both raw DER/PEM and base64-encoded CSRs (for gateway compatibility).
             """
             try:
+                await self._ensure_initialized()
+
                 # Get CSR from request body
                 csr_data = await request.body()
                 if not csr_data:
@@ -350,6 +352,8 @@ class ESTServer:
             Supports both raw DER/PEM and base64-encoded CSRs (for gateway compatibility).
             """
             try:
+                await self._ensure_initialized()
+
                 # Authenticate request
                 auth_result = await self._authenticate_request(request, credentials)
                 if not auth_result.authenticated:
@@ -566,9 +570,18 @@ class ESTServer:
         else:
             activity_log_html = '<div class="log-entry"><span class="log-time">--:--:--</span> No recent activity</div>'
 
-        # Parse uptime for live ticker
-        uptime_parts = stats.uptime.split(':')
-        uptime_seconds = int(uptime_parts[0]) * 3600 + int(uptime_parts[1]) * 60 + int(uptime_parts[2])
+        # Parse uptime for live ticker (handles "H:MM:SS" and "N days, H:MM:SS")
+        try:
+            uptime_str = stats.uptime
+            total_days = 0
+            if 'day' in uptime_str:
+                day_part, time_part = uptime_str.split(', ')
+                total_days = int(day_part.split()[0])
+                uptime_str = time_part
+            parts = uptime_str.split(':')
+            uptime_seconds = total_days * 86400 + int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+        except (ValueError, IndexError):
+            uptime_seconds = 0
 
         return f'''<!DOCTYPE html>
 <html lang="en">
