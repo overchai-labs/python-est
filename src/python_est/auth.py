@@ -196,13 +196,18 @@ class SRPAuthenticator:
 
     async def ensure_default_user(self) -> bool:
         """
-        Ensure default fixed user exists for bootstrap authentication.
+        Ensure default user exists for bootstrap authentication.
+
+        The default credentials can be configured via environment variables:
+            EST_DEFAULT_USER (default: "estuser")
+            EST_DEFAULT_PASS (default: "estpwd")
 
         Returns:
             True if default user exists or was created successfully
         """
-        default_username = "estuser"
-        default_password = "estpass123"
+        import os
+        default_username = os.getenv("EST_DEFAULT_USER", "estuser")
+        default_password = os.getenv("EST_DEFAULT_PASS", "estpwd")
 
         try:
             # Check if default user exists
@@ -214,7 +219,7 @@ class SRPAuthenticator:
             # Create default user
             success = await self.add_user(default_username, default_password)
             if success:
-                logger.info(f"Created default user: {default_username} / {default_password}")
+                logger.info(f"Created default bootstrap user: {default_username}")
             return success
 
         except Exception as e:

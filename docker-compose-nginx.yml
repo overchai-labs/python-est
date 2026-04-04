@@ -1,7 +1,7 @@
 # Docker Compose configuration for EST Server with Nginx
 #
 # Architecture:
-#   IQE Gateway → Nginx (TLS termination) → Python EST Server (HTTP)
+#   Client/Gateway → Nginx (TLS termination) → Python EST Server (HTTP)
 #
 # Nginx extracts client certificates and forwards them via headers
 # This enables RA certificate authentication in containerized environments

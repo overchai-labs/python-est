@@ -87,7 +87,7 @@ class ESTConfig(BaseModel):
     # Response format configuration (for gateway compatibility)
     response_format: str = Field(
         "base64",
-        description="Response format: 'base64' (RFC 7030 compliant) or 'der' (raw binary for IQE gateway)"
+        description="Response format: 'base64' (RFC 7030 compliant) or 'der' (raw binary for gateway devices)"
     )
 
     # Security settings

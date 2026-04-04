@@ -42,7 +42,7 @@ cacerts_path: /.well-known/est/cacerts
 simpleenroll_path: /.well-known/est/simpleenroll
 simplereenroll_path: /.well-known/est/simplereenroll
 
-# Response format for IQE compatibility
+# Response format: 'base64' (RFC 7030 compliant) or 'der' (raw binary for gateways)
 response_format: base64
 
 # Security Settings

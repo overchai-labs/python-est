@@ -228,7 +228,7 @@ class ESTServer:
                         }
                     )
                 else:
-                    # Raw DER response for IQE gateway compatibility
+                    # Raw DER response for gateway devices compatibility
                     return Response(
                         content=ca_certs_pkcs7,
                         media_type="application/pkcs7-mime",
@@ -249,7 +249,7 @@ class ESTServer:
             EST Bootstrap Enrollment (RFC 7030 Section 4.1)
 
             Accepts PKCS#10 CSR with HTTP Basic Auth and returns PKCS#7 certificate.
-            Supports both raw DER/PEM and base64-encoded CSRs (for IQE compatibility).
+            Supports both raw DER/PEM and base64-encoded CSRs (for gateway compatibility).
             """
             try:
                 # Get CSR from request body
@@ -257,7 +257,7 @@ class ESTServer:
                 if not csr_data:
                     raise HTTPException(status_code=400, detail="Missing CSR data")
 
-                # Check if CSR is base64-encoded (IQE UI compatibility)
+                # Check if CSR is base64-encoded (gateway compatibility)
                 content_transfer_encoding = request.headers.get("Content-Transfer-Encoding", "").lower()
                 if content_transfer_encoding == "base64":
                     try:
@@ -316,7 +316,7 @@ class ESTServer:
                         "Content-Transfer-Encoding": "base64"
                     }
                 else:
-                    # Raw DER response for IQE gateway
+                    # Raw DER response for gateway devices
                     headers = {
                         "Content-Type": "application/pkcs7-mime"
                     }
@@ -347,7 +347,7 @@ class ESTServer:
 
             Accepts PKCS#10 CSR and returns PKCS#7 certificate.
             Requires authentication (SRP or client certificate).
-            Supports both raw DER/PEM and base64-encoded CSRs (for IQE compatibility).
+            Supports both raw DER/PEM and base64-encoded CSRs (for gateway compatibility).
             """
             try:
                 # Authenticate request
@@ -360,7 +360,7 @@ class ESTServer:
                 if not csr_data:
                     raise HTTPException(status_code=400, detail="No CSR provided")
 
-                # Check if CSR is base64-encoded (IQE UI compatibility)
+                # Check if CSR is base64-encoded (gateway compatibility)
                 content_transfer_encoding = request.headers.get("Content-Transfer-Encoding", "").lower()
                 if content_transfer_encoding == "base64":
                     try:
@@ -418,7 +418,7 @@ class ESTServer:
                         }
                     )
                 else:
-                    # Raw DER response for IQE gateway
+                    # Raw DER response for gateway devices
                     return Response(
                         content=enrollment_result.certificate_pkcs7,
                         media_type="application/pkcs7-mime; smime-type=certs-only",
@@ -525,7 +525,7 @@ class ESTServer:
             self._initialized = True
 
     def _get_comprehensive_stats_html(self, stats) -> str:
-        """Generate modern Interop EST Server dashboard."""
+        """Generate modern Python-EST Server dashboard."""
 
         # Calculate success rate
         success_rate = 100
@@ -575,7 +575,7 @@ class ESTServer:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interop EST Server</title>
+    <title>Python-EST Server</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {{
@@ -1017,7 +1017,7 @@ class ESTServer:
     <div class="container">
         <header>
             <div class="logo">
-                <h1>Interop EST Server</h1>
+                <h1>Python-EST Server</h1>
                 <small>RFC 7030 Certificate Enrollment Protocol</small>
             </div>
             <div class="header-actions">

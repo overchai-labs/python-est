@@ -277,15 +277,18 @@ class ESTClient:
             raise ESTError(f"Failed to generate CSR: {e}")
 
 
-# Example usage function
 async def example_client_usage():
-    """Example EST client usage."""
+    """
+    Example EST client usage.
+
+    Replace the credentials and server URL with your own values.
+    """
 
     # Initialize client for bootstrap
     client = ESTClient(
         server_url="https://localhost:8443",
-        username="testuser",
-        password="testpass123",
+        username="your-username",
+        password="your-password",
         verify_ssl=False  # For development only
     )
 
@@ -295,7 +298,7 @@ async def example_client_usage():
         print(f"CA Certificates: {ca_certs[:100]}...")
 
         # Generate CSR
-        csr_pem, key_pem = ESTClient.generate_csr("test-device-001")
+        csr_pem, key_pem = ESTClient.generate_csr("my-device-001")
         print(f"Generated CSR: {csr_pem[:100]}...")
 
         # Enroll certificate

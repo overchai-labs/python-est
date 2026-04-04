@@ -86,7 +86,7 @@ class CertificateAuthority:
 
         Args:
             encode_base64: If True, return base64-encoded (RFC 7030 compliant).
-                          If False, return raw DER bytes (for IQE gateway).
+                          If False, return raw DER bytes (for gateway devices).
 
         Returns:
             Base64-encoded PKCS#7 containing CA certificate(s) or raw DER bytes
@@ -111,7 +111,7 @@ class CertificateAuthority:
             csr_data: PKCS#10 Certificate Signing Request
             requester: Authenticated requester identifier
             encode_base64: If True, return base64-encoded (RFC 7030 compliant).
-                          If False, return raw DER bytes (for IQE gateway).
+                          If False, return raw DER bytes (for gateway devices).
 
         Returns:
             CertificateResult with PKCS#7 certificate only (no private key)
@@ -161,7 +161,7 @@ class CertificateAuthority:
             csr_data: PKCS#10 Certificate Signing Request
             requester: Username of requester
             encode_base64: If True, return base64-encoded (RFC 7030 compliant).
-                          If False, return raw DER bytes (for IQE gateway).
+                          If False, return raw DER bytes (for gateway devices).
 
         Returns:
             EnrollmentResult with signed certificate
@@ -335,7 +335,7 @@ class CertificateAuthority:
         Args:
             certificates: List of x509.Certificate objects
             encode_base64: If True, return base64-encoded (RFC 7030 compliant).
-                          If False, return raw DER bytes (for IQE gateway compatibility).
+                          If False, return raw DER bytes (for gateway devices compatibility).
 
         Returns:
             Base64-encoded PKCS#7 certificate response or raw DER bytes
@@ -366,7 +366,7 @@ class CertificateAuthority:
                 logger.debug(f"Created base64-encoded PKCS#7 response with {len(certificates)} certificate(s)")
                 return pkcs7_b64
             else:
-                # Return raw DER bytes for IQE gateway compatibility
+                # Return raw DER bytes for gateway devices compatibility
                 logger.debug(f"Created raw DER PKCS#7 response with {len(certificates)} certificate(s)")
                 return pkcs7_der
 
