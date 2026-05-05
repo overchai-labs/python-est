@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python-EST &mdash; PKI, EAP-TLS &amp; FreeRADIUS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400;1,9..40,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;--surface:#f8fafc;--surface2:#f1f5f9;--border:#e2e8f0;
+  --text:#1e293b;--text2:#64748b;--accent:#2563eb;--accent2:#4f46e5;
+  --green:#16a34a;--amber:#d97706;--red:#dc2626;--cyan:#0891b2;
+  --radius:12px;--font:'DM Sans',system-ui,sans-serif;
+  --mono:'JetBrains Mono','Fira Code',monospace;
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow-lg:0 4px 24px rgba(0,0,0,.07);
+}
+html{scroll-behavior:smooth;font-size:16px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);
+  line-height:1.7;overflow-x:hidden}
+
+/* ── Scroll-driven Animations ────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideLeft{from{opacity:0;transform:translateX(-60px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideRight{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes glow{0%,100%{box-shadow:0 0 8px rgba(37,99,235,.15)}50%{box-shadow:0 0 24px rgba(37,99,235,.3)}}
+
+.anim{opacity:0;transition:none}
+.anim.visible{animation:fadeUp .7s ease forwards}
+.anim-left.visible{animation:slideLeft .7s ease forwards}
+.anim-right.visible{animation:slideRight .7s ease forwards}
+.anim-scale.visible{animation:scaleIn .6s ease forwards}
+.anim-delay-1{animation-delay:.15s!important}
+.anim-delay-2{animation-delay:.3s!important}
+.anim-delay-3{animation-delay:.45s!important}
+.anim-delay-4{animation-delay:.6s!important}
+
+/* ── Navigation ──────────────────────────────────────── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(255,255,255,.88);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);padding:0 2rem}
+nav .inner{max-width:1200px;margin:auto;display:flex;align-items:center;
+  justify-content:space-between;height:60px}
+nav .logo{font-weight:700;font-size:1.15rem;letter-spacing:-.02em;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+nav .links{display:flex;gap:4px}
+nav .links a{color:var(--text2);text-decoration:none;font-size:.85rem;
+  font-weight:500;padding:.4rem .75rem;border-radius:8px;transition:.2s}
+nav .links a:hover,nav .links a.active{color:var(--text);background:var(--surface2)}
+#progress-bar{position:fixed;top:60px;left:0;height:3px;z-index:101;
+  background:linear-gradient(90deg,var(--accent),var(--accent2),var(--cyan));
+  transition:width .15s;width:0}
+
+/* ── Hero ────────────────────────────────────────────── */
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:6rem 2rem;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 30%,rgba(37,99,235,.06) 0%,transparent 60%)}
+.hero h1{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:700;letter-spacing:-.03em;
+  line-height:1.1;margin-bottom:1.5rem;color:var(--text)}
+.hero h1 span{background:linear-gradient(135deg,var(--accent),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero .subtitle{font-size:clamp(1rem,2vw,1.35rem);color:var(--text2);
+  max-width:700px;margin:0 auto 2.5rem;font-weight:400}
+.hero .badges{display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:.4rem;
+  padding:.4rem 1rem;border-radius:999px;font-size:.82rem;font-weight:500;
+  border:1px solid var(--border);background:var(--surface);color:var(--text2);box-shadow:var(--shadow)}
+.badge .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.badge .dot.green{background:var(--green)}.badge .dot.blue{background:var(--accent)}
+.badge .dot.amber{background:var(--amber)}.badge .dot.cyan{background:var(--cyan)}
+.scroll-hint{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);
+  color:var(--text2);font-size:.8rem;animation:float 2.5s ease-in-out infinite}
+
+/* ── Sections ────────────────────────────────────────── */
+section{padding:5rem 2rem;max-width:1200px;margin:0 auto}
+.section-label{display:inline-block;font-size:.75rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.12em;color:var(--accent);
+  padding:.3rem .8rem;border-radius:999px;border:1px solid rgba(37,99,235,.2);
+  background:rgba(37,99,235,.04);margin-bottom:1rem}
+.section-title{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;
+  letter-spacing:-.02em;margin-bottom:.75rem;color:var(--text)}
+.section-desc{color:var(--text2);font-size:1.05rem;max-width:680px;margin-bottom:3rem}
+
+/* ── Cards ───────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:2rem;transition:.3s;box-shadow:var(--shadow)}
+.card:hover{border-color:var(--accent);transform:translateY(-2px);
+  box-shadow:var(--shadow-lg)}
+.card-grid{display:grid;gap:1.25rem}
+.card-grid.cols-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.card-grid.cols-3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.card-grid.cols-4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.card-icon{width:44px;height:44px;border-radius:10px;display:flex;
+  align-items:center;justify-content:center;font-size:1.3rem;margin-bottom:1rem;
+  background:rgba(37,99,235,.08);color:var(--accent)}
+.card h3{font-size:1.1rem;font-weight:600;margin-bottom:.5rem;color:var(--text)}
+.card p{color:var(--text2);font-size:.92rem}
+
+/* ── Architecture Diagram ────────────────────────────── */
+.arch-diagram{position:relative;padding:2rem 0}
+.arch-row{display:flex;align-items:stretch;gap:1.25rem;margin-bottom:1.25rem;flex-wrap:wrap}
+.arch-box{flex:1;min-width:200px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.5rem;text-align:center;
+  position:relative;cursor:pointer;transition:.3s;box-shadow:var(--shadow)}
+.arch-box:hover{border-color:var(--accent);box-shadow:var(--shadow-lg)}
+.arch-box.highlight{border-color:var(--accent);animation:glow 2s ease-in-out infinite}
+.arch-box .title{font-weight:600;font-size:1rem;margin-bottom:.35rem;color:var(--text)}
+.arch-box .desc{font-size:.82rem;color:var(--text2)}
+.arch-box .port{position:absolute;top:.6rem;right:.8rem;font-size:.7rem;
+  font-family:var(--mono);color:var(--cyan);background:rgba(8,145,178,.08);
+  padding:2px 8px;border-radius:6px}
+.arch-arrow{text-align:center;color:var(--text2);font-size:1.5rem;margin:.5rem 0;
+  animation:pulse 2s ease infinite}
+.arch-connector{display:flex;align-items:center;justify-content:center;
+  gap:.5rem;color:var(--text2);font-size:.8rem;margin:.6rem 0}
+.arch-connector .line{flex:1;height:1px;background:var(--border)}
+
+/* ── Flow Steps (vertical timeline) ──────────────────── */
+.flow-timeline{position:relative;padding-left:3rem}
+.flow-timeline::before{content:'';position:absolute;left:14px;top:0;bottom:0;
+  width:2px;background:linear-gradient(to bottom,var(--accent),var(--accent2),var(--cyan))}
+.flow-step{position:relative;margin-bottom:2rem;padding-left:1.5rem}
+.flow-step::before{content:attr(data-step);position:absolute;left:-3rem;
+  width:30px;height:30px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:.75rem;font-weight:700;
+  background:var(--accent);color:#fff;z-index:1}
+.flow-step .card{margin:0}
+.flow-step h4{font-weight:600;font-size:1rem;margin-bottom:.3rem;color:var(--text)}
+.flow-step p{color:var(--text2);font-size:.88rem}
+
+/* ── Code Blocks ─────────────────────────────────────── */
+.code-block{background:#1e293b;border:1px solid #334155;
+  border-radius:var(--radius);overflow:hidden;margin:1.5rem 0}
+.code-header{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;
+  background:rgba(255,255,255,.03);border-bottom:1px solid #334155;font-size:.78rem;color:#94a3b8}
+.code-header .dot{width:10px;height:10px;border-radius:50%}
+.code-header .dot.r{background:#ff5f57}.code-header .dot.y{background:#febc2e}.code-header .dot.g{background:#28c840}
+.code-header .lang{margin-left:auto;font-family:var(--mono);font-size:.7rem}
+pre{padding:1.25rem;overflow-x:auto;font-family:var(--mono);font-size:.82rem;
+  line-height:1.8;color:#e2e8f0;tab-size:2}
+pre .kw{color:#ff7b72}pre .str{color:#a5d6ff}pre .cm{color:#8b949e}
+pre .fn{color:#d2a8ff}pre .num{color:#79c0ff}pre .op{color:#ff7b72}
+pre .type{color:#ffa657}pre .const{color:#79c0ff}
+
+/* ── Tables ──────────────────────────────────────────── */
+.table-wrap{overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{text-align:left;padding:.75rem 1rem;background:var(--surface2);
+  font-weight:600;font-size:.8rem;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--text2);border-bottom:1px solid var(--border)}
+td{padding:.7rem 1rem;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(37,99,235,.02)}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:.5rem}
+.status-dot.ok{background:var(--green)}.status-dot.warn{background:var(--amber)}
+
+/* ── Interactive Tabs ────────────────────────────────── */
+.tabs{display:flex;gap:2px;background:var(--surface);border-radius:10px;
+  padding:4px;border:1px solid var(--border);margin-bottom:1.5rem;flex-wrap:wrap;box-shadow:var(--shadow)}
+.tab-btn{padding:.55rem 1.2rem;border:none;background:none;color:var(--text2);
+  font-family:var(--font);font-size:.85rem;font-weight:500;border-radius:8px;
+  cursor:pointer;transition:.2s;white-space:nowrap}
+.tab-btn:hover{color:var(--text);background:var(--surface2)}
+.tab-btn.active{background:var(--accent);color:#fff}
+.tab-panel{display:none}.tab-panel.active{display:block;animation:fadeIn .4s ease}
+
+/* ── Accordion ───────────────────────────────────────── */
+.accordion{border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;margin-bottom:.75rem;box-shadow:var(--shadow)}
+.accordion-header{display:flex;align-items:center;justify-content:space-between;
+  padding:1rem 1.25rem;background:var(--surface);cursor:pointer;
+  font-weight:600;font-size:.95rem;transition:.2s;user-select:none;color:var(--text)}
+.accordion-header:hover{background:var(--surface2)}
+.accordion-header .arrow{transition:.3s;font-size:.8rem;color:var(--text2)}
+.accordion.open .accordion-header .arrow{transform:rotate(180deg)}
+.accordion-body{max-height:0;overflow:hidden;transition:max-height .4s ease;
+  background:var(--surface)}
+.accordion.open .accordion-body{max-height:2000px}
+.accordion-content{padding:1rem 1.25rem;font-size:.9rem;color:var(--text2)}
+.accordion-content p{margin-bottom:.6rem}
+.accordion-content ul{padding-left:1.2rem;margin-bottom:.6rem}
+.accordion-content li{margin-bottom:.3rem}
+
+/* ── Counters ────────────────────────────────────────── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin:2rem 0}
+.stat-card{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.5rem;text-align:center;box-shadow:var(--shadow)}
+.stat-num{font-size:2.2rem;font-weight:700;
+  background:linear-gradient(135deg,var(--accent),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-label{font-size:.8rem;color:var(--text2);font-weight:500;margin-top:.3rem}
+
+/* ── Tooltips ────────────────────────────────────────── */
+.tip{position:relative;cursor:help;border-bottom:1px dashed var(--accent)}
+.tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);
+  left:50%;transform:translateX(-50%);background:#1e293b;color:#e2e8f0;
+  padding:.5rem .8rem;border-radius:8px;font-size:.78rem;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:.2s;z-index:10}
+.tip:hover::after{opacity:1}
+
+/* ── Interactive Diagram (cert chain) ────────────────── */
+.cert-chain{display:flex;flex-direction:column;align-items:center;gap:0;margin:2rem 0}
+.cert-node{width:320px;padding:1.25rem;background:var(--surface);
+  border:2px solid var(--border);border-radius:var(--radius);text-align:center;
+  cursor:pointer;transition:.3s;position:relative;box-shadow:var(--shadow)}
+.cert-node:hover{border-color:var(--accent);transform:scale(1.02);box-shadow:var(--shadow-lg)}
+.cert-node.active{border-color:var(--cyan);box-shadow:0 0 20px rgba(8,145,178,.12)}
+.cert-node .label{font-weight:700;font-size:1rem;margin-bottom:.25rem;color:var(--text)}
+.cert-node .meta{font-size:.78rem;color:var(--text2);font-family:var(--mono)}
+.cert-link{width:2px;height:36px;background:linear-gradient(to bottom,var(--accent),var(--cyan));position:relative}
+.cert-link::after{content:'signs';position:absolute;left:16px;top:50%;
+  transform:translateY(-50%);font-size:.7rem;color:var(--text2);
+  font-style:italic;white-space:nowrap}
+.cert-detail{margin-top:1rem;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.25rem;max-width:500px;width:100%;
+  display:none;font-size:.85rem;color:var(--text2);box-shadow:var(--shadow-lg)}
+.cert-detail.active{display:block;animation:fadeIn .3s ease}
+.cert-detail h4{color:var(--text);margin-bottom:.5rem}
+
+/* ── Packet Flow Animation ───────────────────────────── */
+.packet-flow{position:relative;height:80px;margin:1.5rem 0;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.packet-flow .track{position:absolute;top:50%;left:0;right:0;height:2px;
+  background:var(--border);transform:translateY(-50%)}
+.packet-flow .node{position:absolute;top:50%;transform:translateY(-50%);
+  padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:600;
+  background:var(--surface2);border:1px solid var(--border);z-index:2;color:var(--text)}
+.packet-flow .node.left{left:1rem}.packet-flow .node.right{right:1rem}
+.packet-flow .packet{position:absolute;top:50%;width:12px;height:12px;
+  border-radius:50%;transform:translateY(-50%);z-index:3;opacity:0}
+.packet-flow.running .packet{animation:movePacket 2s ease-in-out infinite}
+.packet-flow .packet.req{background:var(--accent);animation-delay:0s}
+.packet-flow .packet.res{background:var(--green);animation-delay:1s}
+@keyframes movePacket{
+  0%{left:4rem;opacity:0}10%{opacity:1}45%{left:calc(100% - 5rem);opacity:1}
+  55%{left:calc(100% - 5rem);opacity:0}100%{left:calc(100% - 5rem);opacity:0}
+}
+
+/* ── Glossary ────────────────────────────────────────── */
+.glossary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem}
+.glossary-item{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow)}
+.glossary-item .term{font-weight:700;font-size:.95rem;color:var(--accent);margin-bottom:.3rem}
+.glossary-item .def{font-size:.85rem;color:var(--text2)}
+
+/* ═══════════════════════════════════════════════════════ */
+/* THE BIG PICTURE — Interactive System Flow              */
+/* ═══════════════════════════════════════════════════════ */
+.bigpic{background:linear-gradient(135deg,#f0f4ff 0%,#e8f0fe 50%,#f0fdfa 100%);
+  border:2px solid var(--accent);border-radius:16px;padding:2.5rem;margin:2rem 0;
+  position:relative;overflow:hidden}
+.bigpic::before{content:'';position:absolute;top:-50%;right:-20%;width:500px;height:500px;
+  border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.05),transparent 70%)}
+
+/* SVG diagram container */
+.system-svg-wrap{width:100%;overflow-x:auto;margin:1.5rem 0}
+.system-svg-wrap svg{display:block;margin:0 auto}
+
+/* Entity boxes in the SVG */
+.entity-box{cursor:pointer;transition:.2s}
+.entity-box:hover rect{stroke-width:2.5;filter:drop-shadow(0 2px 8px rgba(37,99,235,.15))}
+.entity-box.active rect{stroke:var(--accent);stroke-width:3;filter:drop-shadow(0 4px 16px rgba(37,99,235,.2))}
+
+/* Detail panel below diagram */
+.entity-detail{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1.75rem;margin-top:1.5rem;display:none;box-shadow:var(--shadow-lg)}
+.entity-detail.active{display:block;animation:fadeIn .35s ease}
+.entity-detail h4{font-size:1.1rem;font-weight:700;margin-bottom:.5rem;color:var(--text)}
+.entity-detail .role{font-size:.85rem;color:var(--accent);font-weight:600;margin-bottom:.75rem}
+.entity-detail p{font-size:.9rem;color:var(--text2);margin-bottom:.6rem;line-height:1.7}
+.entity-detail ul{padding-left:1.2rem;margin:.5rem 0;font-size:.88rem;color:var(--text2)}
+.entity-detail li{margin-bottom:.4rem}
+
+/* Animated flow arrows inside SVG */
+@keyframes flowDash{to{stroke-dashoffset:-20}}
+.flow-arrow{animation:flowDash 1s linear infinite}
+
+/* Step numbers overlay */
+.step-badge{font-family:var(--font);font-weight:700;font-size:11px;fill:#fff}
+.step-circle{fill:var(--accent)}
+
+/* ── Footer ──────────────────────────────────────────── */
+footer{text-align:center;padding:3rem 2rem;color:var(--text2);font-size:.82rem;
+  border-top:1px solid var(--border)}
+
+/* ── Responsive ──────────────────────────────────────── */
+@media(max-width:768px){
+  nav .links{display:none}
+  section{padding:3rem 1.25rem}
+  .hero h1{font-size:2rem}
+  .arch-row{flex-direction:column}
+  .cert-node{width:100%;max-width:320px}
+  .bigpic{padding:1.25rem}
+}
+
+/* ── Print ───────────────────────────────────────────── */
+@media print{
+  nav,#progress-bar,.scroll-hint{display:none!important}
+  .card,.arch-box,.accordion,.code-block{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <div class="inner">
+    <div class="logo">Python-EST</div>
+    <div class="links">
+      <a href="#overview">Overview</a>
+      <a href="#bigpicture">The Big Picture</a>
+      <a href="#pki">PKI</a>
+      <a href="#est">EST Protocol</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#eaptls">EAP-TLS</a>
+      <a href="#endpoints">Endpoints</a>
+      <a href="#auth">Auth</a>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#deploy">Deploy</a>
+      <a href="#glossary">Glossary</a>
+    </div>
+  </div>
+</nav>
+<div id="progress-bar"></div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- HERO                                                -->
+<!-- ═══════════════════════════════════════════════════ -->
+<header class="hero">
+  <div>
+    <h1 class="anim">Python-<span>EST</span> Server</h1>
+    <p class="subtitle anim anim-delay-1">
+      A complete walkthrough of our <strong>RFC 7030</strong> EST server, <strong>FreeRADIUS</strong> integration, and <strong>EAP-TLS</strong> PKI infrastructure &mdash; from certificate generation to authenticated network access.
+    </p>
+    <div class="badges anim anim-delay-2">
+      <span class="badge"><span class="dot green"></span>RFC 7030 Compliant</span>
+      <span class="badge"><span class="dot blue"></span>FastAPI + Async</span>
+      <span class="badge"><span class="dot amber"></span>Dual Auth (SRP + RA)</span>
+      <span class="badge"><span class="dot cyan"></span>Docker Ready</span>
+    </div>
+    <div class="scroll-hint" style="margin-top:3rem">Scroll to explore &darr;</div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 1. OVERVIEW                                         -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="overview">
+  <span class="section-label anim">01 &middot; Overview</span>
+  <h2 class="section-title anim">What We Built &amp; Why</h2>
+  <p class="section-desc anim">
+    IoT and enterprise devices need <em>certificates</em> to prove their identity on a network.
+    Manually copying certificates doesn't scale. <strong>EST</strong> (Enrollment over Secure Transport) automates this &mdash;
+    devices request certificates over HTTPS, and the server issues them automatically.
+  </p>
+
+  <div class="stat-grid">
+    <div class="stat-card anim anim-scale"><div class="stat-num" data-count="7030">0</div><div class="stat-label">RFC Standard</div></div>
+    <div class="stat-card anim anim-scale anim-delay-1"><div class="stat-num" data-count="9">0</div><div class="stat-label">API Endpoints</div></div>
+    <div class="stat-card anim anim-scale anim-delay-2"><div class="stat-num" data-count="2">0</div><div class="stat-label">Auth Methods</div></div>
+    <div class="stat-card anim anim-scale anim-delay-3"><div class="stat-num" data-count="100">0</div><div class="stat-label">% E2E Tested</div></div>
+  </div>
+
+  <div class="card-grid cols-3" style="margin-top:2rem">
+    <div class="card anim anim-delay-1">
+      <div class="card-icon">&#128274;</div>
+      <h3>Certificate Provisioning</h3>
+      <p>Devices generate a keypair, send a CSR, receive a signed certificate &mdash; all over HTTPS. No USB drives, no manual copying.</p>
+    </div>
+    <div class="card anim anim-delay-2">
+      <div class="card-icon">&#128225;</div>
+      <h3>Network Authentication</h3>
+      <p>Certificates issued by EST are used for <strong>EAP-TLS</strong> authentication against FreeRADIUS, granting secure Wi-Fi or wired access.</p>
+    </div>
+    <div class="card anim anim-delay-3">
+      <div class="card-icon">&#128200;</div>
+      <h3>Fleet Management</h3>
+      <p>Real-time dashboard tracks every device &mdash; enrollment status, certificate serial, IP address, and last activity.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- THE BIG PICTURE — Full System Flow Visualization    -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="bigpicture">
+  <span class="section-label anim" style="border-color:rgba(37,99,235,.4);background:rgba(37,99,235,.08)">Highlight</span>
+  <h2 class="section-title anim">The Big Picture</h2>
+  <p class="section-desc anim">
+    Every component in one frame. <strong>Click any box</strong> to learn exactly what it does and how it talks to the others.
+    Follow the numbered steps to trace a device's journey from factory floor to authenticated network access.
+  </p>
+
+  <div class="bigpic anim">
+    <div class="system-svg-wrap">
+      <svg viewBox="0 0 980 520" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width:980px;font-family:'DM Sans',system-ui,sans-serif">
+        <!-- ── Connection lines (behind everything) ── -->
+        <!-- Device -> EST Server -->
+        <line x1="160" y1="135" x2="160" y2="218" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 4"/>
+        <!-- Requester -> EST Server -->
+        <line x1="500" y1="135" x2="500" y2="218" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 4"/>
+        <!-- EST Server -> CA -->
+        <line x1="330" y1="310" x2="330" y2="388" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 4"/>
+        <!-- Device -> AP -->
+        <path d="M 220 100 Q 620 40 720 100" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 4" fill="none"/>
+        <!-- AP -> FreeRADIUS -->
+        <line x1="780" y1="135" x2="780" y2="218" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 4"/>
+        <!-- CA -> FreeRADIUS (shared trust) -->
+        <path d="M 440 430 Q 610 500 780 340" stroke="#2563eb" stroke-width="2" stroke-dasharray="8 5" fill="none" opacity=".35"/>
+        <text x="610" y="490" font-size="10" fill="#2563eb" text-anchor="middle" font-style="italic" opacity=".6">shared CA trust</text>
+
+        <!-- ── Animated flow arrows ── -->
+        <!-- Step 1: Device -> EST -->
+        <line x1="160" y1="140" x2="160" y2="215" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 4" class="flow-arrow"/>
+        <!-- Step 3: EST -> Device (cert back) -->
+        <line x1="170" y1="215" x2="170" y2="140" stroke="#16a34a" stroke-width="2" stroke-dasharray="6 4" class="flow-arrow" style="animation-direction:reverse"/>
+        <!-- Step 2: EST -> CA (signing) -->
+        <line x1="330" y1="315" x2="330" y2="385" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 4" class="flow-arrow"/>
+        <!-- Step 5: Device -> AP -> FreeRADIUS -->
+        <path d="M 225 100 Q 620 35 715 100" stroke="#d97706" stroke-width="2" stroke-dasharray="6 4" fill="none" class="flow-arrow"/>
+        <line x1="780" y1="140" x2="780" y2="215" stroke="#d97706" stroke-width="2" stroke-dasharray="6 4" class="flow-arrow"/>
+
+        <!-- ══ ENTITY BOXES ══ -->
+
+        <!-- DEVICE (IoT Pump) -->
+        <g class="entity-box" data-entity="device" onclick="showEntityDetail('device')">
+          <rect x="60" y="60" width="200" height="75" rx="10" fill="#fff" stroke="#e2e8f0" stroke-width="1.5"/>
+          <text x="160" y="88" text-anchor="middle" font-weight="700" font-size="14" fill="#1e293b">IoT Device</text>
+          <text x="160" y="106" text-anchor="middle" font-size="11" fill="#64748b">pump-003.factory.local</text>
+          <text x="160" y="122" text-anchor="middle" font-size="10" fill="#94a3b8">Generates keypair + CSR</text>
+        </g>
+
+        <!-- REQUESTER / RA GATEWAY -->
+        <g class="entity-box" data-entity="requester" onclick="showEntityDetail('requester')">
+          <rect x="380" y="60" width="240" height="75" rx="10" fill="#fff" stroke="#e2e8f0" stroke-width="1.5"/>
+          <text x="500" y="88" text-anchor="middle" font-weight="700" font-size="14" fill="#1e293b">Requester / RA Gateway</text>
+          <text x="500" y="106" text-anchor="middle" font-size="11" fill="#64748b">Manufacturing line gateway</text>
+          <text x="500" y="122" text-anchor="middle" font-size="10" fill="#94a3b8">Client cert or Basic Auth</text>
+        </g>
+
+        <!-- ACCESS POINT / SWITCH -->
+        <g class="entity-box" data-entity="ap" onclick="showEntityDetail('ap')">
+          <rect x="680" y="60" width="200" height="75" rx="10" fill="#fff" stroke="#e2e8f0" stroke-width="1.5"/>
+          <text x="780" y="88" text-anchor="middle" font-weight="700" font-size="14" fill="#1e293b">Access Point / Switch</text>
+          <text x="780" y="106" text-anchor="middle" font-size="11" fill="#64748b">802.1X Authenticator</text>
+          <text x="780" y="122" text-anchor="middle" font-size="10" fill="#94a3b8">Relays EAP to RADIUS</text>
+        </g>
+
+        <!-- EST SERVER (center) -->
+        <g class="entity-box" data-entity="est" onclick="showEntityDetail('est')">
+          <rect x="120" y="218" width="420" height="92" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+          <text x="330" y="248" text-anchor="middle" font-weight="700" font-size="16" fill="#1e293b">Python-EST Server</text>
+          <text x="330" y="268" text-anchor="middle" font-size="12" fill="#2563eb" font-weight="600">RFC 7030 &middot; FastAPI &middot; Port 8000</text>
+          <text x="200" y="295" text-anchor="middle" font-size="10" fill="#64748b">SRP Auth</text>
+          <text x="330" y="295" text-anchor="middle" font-size="10" fill="#64748b">CSR Signing</text>
+          <text x="460" y="295" text-anchor="middle" font-size="10" fill="#64748b">Device Tracker</text>
+        </g>
+
+        <!-- FREERADIUS -->
+        <g class="entity-box" data-entity="freeradius" onclick="showEntityDetail('freeradius')">
+          <rect x="660" y="218" width="220" height="92" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+          <text x="770" y="248" text-anchor="middle" font-weight="700" font-size="16" fill="#1e293b">FreeRADIUS</text>
+          <text x="770" y="268" text-anchor="middle" font-size="12" fill="#16a34a" font-weight="600">EAP-TLS &middot; 802.1X</text>
+          <text x="770" y="295" text-anchor="middle" font-size="10" fill="#64748b">Validates device certs</text>
+        </g>
+
+        <!-- CERTIFICATE AUTHORITY -->
+        <g class="entity-box" data-entity="ca" onclick="showEntityDetail('ca')">
+          <rect x="200" y="388" width="260" height="92" rx="12" fill="#fefce8" stroke="#d97706" stroke-width="2"/>
+          <text x="330" y="418" text-anchor="middle" font-weight="700" font-size="16" fill="#1e293b">Certificate Authority</text>
+          <text x="330" y="438" text-anchor="middle" font-size="12" fill="#d97706" font-weight="600">Root of Trust &middot; ca.py</text>
+          <text x="330" y="462" text-anchor="middle" font-size="10" fill="#64748b">ca-key.pem (signs)</text>
+          <text x="330" y="475" text-anchor="middle" font-size="10" fill="#64748b">ca-cert.pem (verifies)</text>
+        </g>
+
+        <!-- ══ STEP BADGES ══ -->
+        <circle cx="145" cy="175" r="12" fill="#2563eb"/>
+        <text x="145" y="179" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">1</text>
+        <text x="122" y="198" font-size="9" fill="#2563eb" font-weight="600">Send CSR</text>
+
+        <circle cx="330" cy="355" r="12" fill="#2563eb"/>
+        <text x="330" y="359" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">2</text>
+        <text x="358" y="370" font-size="9" fill="#2563eb" font-weight="600">Sign cert</text>
+
+        <circle cx="185" cy="175" r="12" fill="#16a34a"/>
+        <text x="185" y="179" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">3</text>
+        <text x="212" y="198" font-size="9" fill="#16a34a" font-weight="600">Return cert</text>
+
+        <circle cx="470" cy="55" r="12" fill="#d97706"/>
+        <text x="470" y="59" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">4</text>
+        <text x="470" y="43" font-size="9" fill="#d97706" font-weight="600">Connect to Wi-Fi</text>
+
+        <circle cx="780" cy="175" r="12" fill="#d97706"/>
+        <text x="780" y="179" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">5</text>
+        <text x="813" y="195" font-size="9" fill="#d97706" font-weight="600">EAP-TLS</text>
+
+        <circle cx="770" cy="340" r="12" fill="#16a34a"/>
+        <text x="770" y="344" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">6</text>
+        <text x="803" y="355" font-size="9" fill="#16a34a" font-weight="600">Access-Accept</text>
+      </svg>
+    </div>
+
+    <!-- Step-by-step explanation below diagram -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:1.5rem">
+      <div style="display:flex;gap:.75rem;align-items:flex-start">
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem">1</div>
+        <div><strong style="font-size:.9rem">Device sends CSR</strong><p style="font-size:.82rem;color:var(--text2);margin-top:.15rem">The device generates a keypair, builds a CSR with its identity, and sends it to the EST server over HTTPS. The private key stays on the device.</p></div>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:flex-start">
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem">2</div>
+        <div><strong style="font-size:.9rem">CA signs the certificate</strong><p style="font-size:.82rem;color:var(--text2);margin-top:.15rem">The EST server passes the validated CSR to the Certificate Authority module. The CA uses its private key (<em>ca-key.pem</em>) to sign a new X.509 certificate.</p></div>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:flex-start">
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem">3</div>
+        <div><strong style="font-size:.9rem">Certificate returned</strong><p style="font-size:.82rem;color:var(--text2);margin-top:.15rem">The signed certificate is wrapped in a PKCS#7 envelope and sent back. The device now holds: its private key, its signed cert, and the CA cert. That's all it needs.</p></div>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:flex-start">
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--amber);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem">4</div>
+        <div><strong style="font-size:.9rem">Device connects to Wi-Fi</strong><p style="font-size:.82rem;color:var(--text2);margin-top:.15rem">The device associates with the enterprise SSID. The access point sees it's an 802.1X network and starts an EAP conversation instead of granting access immediately.</p></div>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:flex-start">
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--amber);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem">5</div>
+        <div><strong style="font-size:.9rem">EAP-TLS handshake</strong><p style="font-size:.82rem;color:var(--text2);margin-top:.15rem">The AP relays EAP packets between the device and FreeRADIUS. A full TLS handshake happens: both sides exchange certificates and verify them against the <strong>same CA</strong>. Mutual authentication.</p></div>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:flex-start">
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem">6</div>
+        <div><strong style="font-size:.9rem">Access granted</strong><p style="font-size:.82rem;color:var(--text2);margin-top:.15rem">FreeRADIUS sends <strong>Access-Accept</strong> to the AP. The switch port or Wi-Fi is opened. The device is on the network with a verified, cryptographic identity. VLANs and policies apply.</p></div>
+      </div>
+    </div>
+
+    <!-- Entity detail panel -->
+    <div id="entity-detail" class="entity-detail"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 2. PKI FUNDAMENTALS                                 -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="pki">
+  <span class="section-label anim">02 &middot; PKI Fundamentals</span>
+  <h2 class="section-title anim">Public Key Infrastructure</h2>
+  <p class="section-desc anim">
+    PKI is the <em>trust framework</em> that makes everything work.
+    Instead of passwords, devices prove identity with <strong>cryptographic certificates</strong> signed by a trusted authority.
+  </p>
+
+  <!-- Interactive Certificate Chain -->
+  <h3 class="anim" style="margin-bottom:1rem;font-size:1.15rem">Certificate Trust Chain <span style="font-size:.85rem;color:var(--text2);font-weight:400">(click a node to inspect)</span></h3>
+  <div class="cert-chain anim">
+    <div class="cert-node" data-cert="root" onclick="showCertDetail(this,'root')">
+      <div class="label">Root CA Certificate</div>
+      <div class="meta">Self-signed &middot; ca-cert.pem</div>
+    </div>
+    <div class="cert-link"><span></span></div>
+    <div class="cert-node" data-cert="server" onclick="showCertDetail(this,'server')">
+      <div class="label">EST Server Certificate</div>
+      <div class="meta">Signed by Root CA &middot; server.crt</div>
+    </div>
+    <div class="cert-link"></div>
+    <div class="cert-node" data-cert="device" onclick="showCertDetail(this,'device')">
+      <div class="label">Device Certificate</div>
+      <div class="meta">Signed by Root CA &middot; issued on enrollment</div>
+    </div>
+  </div>
+  <div id="cert-detail-box" class="cert-detail" style="margin:0 auto"></div>
+
+  <!-- PKI key concepts -->
+  <div class="card-grid cols-2" style="margin-top:2.5rem">
+    <div class="card anim">
+      <h3>Asymmetric Cryptography</h3>
+      <p>Every entity has a <strong>keypair</strong> &mdash; a private key (secret) and a public key (shared).
+         Data encrypted with the public key can only be decrypted with the private key. Signatures work in reverse:
+         sign with the private key, verify with the public key.</p>
+    </div>
+    <div class="card anim anim-delay-1">
+      <h3>X.509 Certificates</h3>
+      <p>A certificate binds an identity (like <em>"pump-003.factory"</em>) to a public key, signed by a CA.
+         It contains: <strong>Subject</strong>, <strong>Issuer</strong>, <strong>Validity period</strong>,
+         <strong>Serial number</strong>, <strong>Public key</strong>, and <strong>Extensions</strong> (key usage, etc.).</p>
+    </div>
+    <div class="card anim anim-delay-2">
+      <h3>Certificate Signing Request (CSR)</h3>
+      <p>A <span class="tip" data-tip="PKCS#10 format">CSR</span> is how a device asks for a certificate.
+         The device generates a keypair, puts the public key + identity info into a CSR,
+         signs it with its private key (proof of possession), and sends it to the CA.</p>
+    </div>
+    <div class="card anim anim-delay-3">
+      <h3>PKCS#7 Envelope</h3>
+      <p>EST returns certificates in a <span class="tip" data-tip="Also called CMS &mdash; Cryptographic Message Syntax">PKCS#7</span>
+         container. This is a standard wrapper that can hold one or more certificates.
+         Our server uses a <em>degenerate</em> PKCS#7 (certs-only, no signed data).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 3. EST PROTOCOL DEEP-DIVE                           -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="est">
+  <span class="section-label anim">03 &middot; EST Protocol</span>
+  <h2 class="section-title anim">RFC 7030 &mdash; Enrollment over Secure Transport</h2>
+  <p class="section-desc anim">
+    EST defines a simple HTTPS-based protocol for certificate lifecycle management.
+    It replaces older, more complex protocols like SCEP with a clean REST-style API.
+  </p>
+
+  <!-- Tabs: Protocol Operations -->
+  <div class="tabs anim">
+    <button class="tab-btn active" onclick="switchTab(event,'tab-cacerts')">CA Certs</button>
+    <button class="tab-btn" onclick="switchTab(event,'tab-bootstrap')">Bootstrap</button>
+    <button class="tab-btn" onclick="switchTab(event,'tab-enroll')">Simple Enroll</button>
+    <button class="tab-btn" onclick="switchTab(event,'tab-reenroll')">Re-Enroll</button>
+  </div>
+
+  <div id="tab-cacerts" class="tab-panel active">
+    <div class="card">
+      <h3>GET <code>/.well-known/est/cacerts</code></h3>
+      <p style="color:var(--text2);margin:.5rem 0 1rem"><strong>No authentication required.</strong> Returns the CA certificate(s) in PKCS#7 format so clients can build their trust chain.</p>
+      <div class="packet-flow running">
+        <div class="track"></div>
+        <div class="node left">Device</div>
+        <div class="node right">EST Server</div>
+        <div class="packet req"></div>
+        <div class="packet res"></div>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span style="margin-left:.5rem">Request</span><span class="lang">bash</span></div>
+<pre>curl <span class="op">-k</span> https://est-server:8445/.well-known/est/cacerts</pre>
+      </div>
+      <p style="font-size:.85rem;color:var(--text2);margin-top:.5rem"><strong>Response:</strong> Base64-encoded PKCS#7 blob containing the CA certificate (~1,348 bytes)</p>
+    </div>
+  </div>
+
+  <div id="tab-bootstrap" class="tab-panel">
+    <div class="card">
+      <h3>POST <code>/.well-known/est/bootstrap</code></h3>
+      <p style="color:var(--text2);margin:.5rem 0 1rem"><strong>Basic Auth required.</strong> First-time enrollment for new devices. Returns a <em>short-lived</em> 30-day bootstrap certificate.</p>
+      <div class="packet-flow running">
+        <div class="track"></div>
+        <div class="node left">New Device</div>
+        <div class="node right">EST Server</div>
+        <div class="packet req"></div>
+        <div class="packet res"></div>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span style="margin-left:.5rem">Request</span><span class="lang">bash</span></div>
+<pre>curl <span class="op">-k</span> <span class="op">-u</span> <span class="str">estuser:estpwd</span> \
+  <span class="op">-H</span> <span class="str">"Content-Type: application/pkcs10"</span> \
+  <span class="op">--data-binary</span> @device.csr \
+  https://est-server:8445/.well-known/est/bootstrap</pre>
+      </div>
+      <p style="font-size:.85rem;color:var(--text2);margin-top:.5rem"><strong>Response:</strong> PKCS#7 certificate valid for 30 days. Device is now tracked as <em>bootstrap_only</em>.</p>
+    </div>
+  </div>
+
+  <div id="tab-enroll" class="tab-panel">
+    <div class="card">
+      <h3>POST <code>/.well-known/est/simpleenroll</code></h3>
+      <p style="color:var(--text2);margin:.5rem 0 1rem"><strong>Basic Auth or Client Cert required.</strong> Full enrollment &mdash; issues a 365-day production certificate.</p>
+      <div class="packet-flow running">
+        <div class="track"></div>
+        <div class="node left">Device</div>
+        <div class="node right">EST Server</div>
+        <div class="packet req"></div>
+        <div class="packet res"></div>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span style="margin-left:.5rem">Request with client cert (RA auth)</span><span class="lang">bash</span></div>
+<pre>curl <span class="op">-k</span> \
+  <span class="op">--cert</span> ra-cert.pem <span class="op">--key</span> ra-key.pem \
+  <span class="op">-H</span> <span class="str">"Content-Type: application/pkcs10"</span> \
+  <span class="op">--data-binary</span> @device.csr \
+  https://est-server:8445/.well-known/est/simpleenroll</pre>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-reenroll" class="tab-panel">
+    <div class="card">
+      <h3>POST <code>/.well-known/est/simplereenroll</code></h3>
+      <p style="color:var(--text2);margin:.5rem 0 1rem"><strong>Basic Auth required.</strong> Certificate renewal before expiry. Same process, fresh certificate with new validity dates.</p>
+      <div class="code-block">
+        <div class="code-header"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span style="margin-left:.5rem">Renew certificate</span><span class="lang">bash</span></div>
+<pre>curl <span class="op">-k</span> <span class="op">-u</span> <span class="str">estuser:estpwd</span> \
+  <span class="op">-H</span> <span class="str">"Content-Type: application/pkcs10"</span> \
+  <span class="op">--data-binary</span> @device.csr \
+  https://est-server:8445/.well-known/est/simplereenroll</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 4. SYSTEM ARCHITECTURE                              -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="architecture">
+  <span class="section-label anim">04 &middot; Architecture</span>
+  <h2 class="section-title anim">System Architecture</h2>
+  <p class="section-desc anim">
+    Our deployment uses a two-tier architecture: <strong>Nginx</strong> handles TLS termination and client certificate extraction,
+    while the <strong>Python-EST FastAPI server</strong> handles all protocol logic.
+  </p>
+
+  <div class="arch-diagram anim">
+    <div class="arch-row">
+      <div class="arch-box" style="border-color:var(--amber)">
+        <div class="title">IoT Device</div>
+        <div class="desc">Generates keypair + CSR<br>Sends enrollment request</div>
+      </div>
+      <div class="arch-box" style="border-color:var(--amber)">
+        <div class="title">Manufacturing Gateway</div>
+        <div class="desc">RA certificate auth<br>Bulk device provisioning</div>
+      </div>
+      <div class="arch-box" style="border-color:var(--amber)">
+        <div class="title">Admin / Dashboard</div>
+        <div class="desc">Monitor fleet<br>View stats &amp; manage devices</div>
+      </div>
+    </div>
+    <div class="arch-arrow">&darr;</div>
+    <div class="arch-connector"><div class="line"></div><span>HTTPS &middot; TLS 1.2+</span><div class="line"></div></div>
+    <div class="arch-row">
+      <div class="arch-box highlight" style="flex:1">
+        <span class="port">:8445</span>
+        <div class="title">Nginx Reverse Proxy</div>
+        <div class="desc">TLS termination &middot; Client cert extraction &middot; HSTS headers<br>Forwards <code>X-SSL-Client-*</code> headers to backend</div>
+      </div>
+    </div>
+    <div class="arch-arrow">&darr;</div>
+    <div class="arch-connector"><div class="line"></div><span>HTTP (internal network)</span><div class="line"></div></div>
+    <div class="arch-row">
+      <div class="arch-box highlight" style="flex:1;border-color:var(--cyan)">
+        <span class="port">:8000</span>
+        <div class="title">Python-EST FastAPI Server</div>
+        <div class="desc">EST protocol handler &middot; CSR signing &middot; SRP auth &middot; Device tracking &middot; Dashboard</div>
+      </div>
+    </div>
+    <div class="arch-arrow">&darr;</div>
+    <div class="arch-row">
+      <div class="arch-box">
+        <div class="title">Certificate Authority</div>
+        <div class="desc">ca.py &mdash; Signs CSRs with CA private key<br>SHA-256 &middot; PKCS#7 formatting</div>
+      </div>
+      <div class="arch-box">
+        <div class="title">SRP Authenticator</div>
+        <div class="desc">auth.py &mdash; PBKDF2 password hashing<br>RFC 2945 &middot; srp_users.db</div>
+      </div>
+      <div class="arch-box">
+        <div class="title">Device Tracker</div>
+        <div class="desc">device_tracker.py &mdash; JSON persistence<br>Stats, activity, enrollment history</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="anim" style="margin:2rem 0 1rem;font-size:1.15rem">Project Structure</h3>
+  <div class="accordion anim" onclick="toggleAccordion(this)">
+    <div class="accordion-header"><span>src/python_est/ &mdash; Core Library</span><span class="arrow">&#9660;</span></div>
+    <div class="accordion-body"><div class="accordion-content">
+      <ul>
+        <li><strong>server.py</strong> &mdash; FastAPI app, all route handlers, request processing</li>
+        <li><strong>ca.py</strong> &mdash; Certificate Authority: CSR validation, signing, PKCS#7 packaging</li>
+        <li><strong>auth.py</strong> &mdash; SRP authentication: user database, password verification</li>
+        <li><strong>config.py</strong> &mdash; Pydantic config model, YAML loader, validation</li>
+        <li><strong>device_tracker.py</strong> &mdash; Device enrollment tracking, stats aggregation</li>
+        <li><strong>models.py</strong> &mdash; Request/response data models</li>
+        <li><strong>client.py</strong> &mdash; EST client library for testing and integration</li>
+        <li><strong>cli.py</strong> &mdash; Click CLI: <code>init</code>, <code>start</code>, <code>user add/remove/list</code></li>
+        <li><strong>utils.py</strong> &mdash; Logging setup, directory creation, cert validation</li>
+        <li><strong>exceptions.py</strong> &mdash; Custom error hierarchy (ESTError base class)</li>
+      </ul>
+    </div></div>
+  </div>
+  <div class="accordion anim anim-delay-1" onclick="toggleAccordion(this)">
+    <div class="accordion-header"><span>docker/ &amp; nginx/ &mdash; Deployment</span><span class="arrow">&#9660;</span></div>
+    <div class="accordion-body"><div class="accordion-content">
+      <ul>
+        <li><strong>docker/Dockerfile</strong> &mdash; Python 3.11-slim, non-root user, health check</li>
+        <li><strong>docker/entrypoint.sh</strong> &mdash; Container startup, env var handling</li>
+        <li><strong>nginx/nginx.conf</strong> &mdash; TLS termination, client cert passthrough, proxy config</li>
+        <li><strong>docker-compose-nginx.yml</strong> &mdash; Two-container deployment (EST + Nginx)</li>
+      </ul>
+    </div></div>
+  </div>
+  <div class="accordion anim anim-delay-2" onclick="toggleAccordion(this)">
+    <div class="accordion-header"><span>certs/ &amp; data/ &mdash; Runtime Files</span><span class="arrow">&#9660;</span></div>
+    <div class="accordion-body"><div class="accordion-content">
+      <ul>
+        <li><strong>certs/ca-cert.pem</strong> &mdash; CA certificate (public, shared with FreeRADIUS)</li>
+        <li><strong>certs/ca-key.pem</strong> &mdash; CA private key (secret, signs all device certs)</li>
+        <li><strong>certs/server.crt / server.key</strong> &mdash; TLS server certificate for Nginx</li>
+        <li><strong>data/devices.json</strong> &mdash; All tracked device enrollment data</li>
+        <li><strong>data/server_stats.json</strong> &mdash; Persisted statistics</li>
+        <li><strong>data/srp_users.db</strong> &mdash; SRP user credentials (salt:verifier format)</li>
+      </ul>
+    </div></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 5. EAP-TLS + FREERADIUS                             -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="eaptls">
+  <span class="section-label anim">05 &middot; EAP-TLS + FreeRADIUS</span>
+  <h2 class="section-title anim">From Certificate to Network Access</h2>
+  <p class="section-desc anim">
+    This is the <em>endgame</em>. The certificate issued by EST enables the device to authenticate
+    to the Wi-Fi or wired network using <strong>EAP-TLS</strong> &mdash; the strongest 802.1X method.
+  </p>
+
+  <h3 class="anim" style="margin-bottom:1.5rem;font-size:1.15rem">End-to-End Flow: Device Onboarding to Network Access</h3>
+  <div class="flow-timeline anim">
+    <div class="flow-step" data-step="1">
+      <div class="card">
+        <h4>Device Generates Keypair</h4>
+        <p>The device creates an RSA 2048-bit (or EC P-256) keypair. The private key <strong>never leaves the device</strong>. It then builds a PKCS#10 CSR containing its identity (e.g., CN=pump-003.factory.local) and signs it with the private key.</p>
+      </div>
+    </div>
+    <div class="flow-step" data-step="2">
+      <div class="card">
+        <h4>EST Enrollment</h4>
+        <p>The device sends the CSR to <code>/.well-known/est/simpleenroll</code> over HTTPS, authenticating with either a shared password (SRP/Basic Auth) or a pre-provisioned RA certificate. The EST server validates the CSR and signs it with the <strong>CA private key</strong>.</p>
+      </div>
+    </div>
+    <div class="flow-step" data-step="3">
+      <div class="card">
+        <h4>Certificate Issued</h4>
+        <p>The EST server returns the signed certificate in a PKCS#7 envelope. The device now has: its <em>private key</em>, its <em>signed certificate</em>, and the <em>CA certificate</em> (from <code>/cacerts</code>). This trio is all it needs for EAP-TLS.</p>
+      </div>
+    </div>
+    <div class="flow-step" data-step="4">
+      <div class="card">
+        <h4>Wi-Fi Association (802.1X)</h4>
+        <p>The device connects to the enterprise SSID. The access point (AP) or switch challenges the device using <strong>802.1X</strong>. The device responds: <em>"I want to use EAP-TLS."</em></p>
+      </div>
+    </div>
+    <div class="flow-step" data-step="5">
+      <div class="card">
+        <h4>EAP-TLS Handshake</h4>
+        <p>A full TLS handshake happens inside EAP frames:</p>
+        <ul style="margin:.5rem 0 0 1.2rem;font-size:.88rem;color:var(--text2)">
+          <li>FreeRADIUS sends its server certificate</li>
+          <li>Device verifies it against the CA cert</li>
+          <li>Device sends its EST-issued certificate</li>
+          <li>FreeRADIUS verifies it against the <strong>same CA cert</strong></li>
+          <li>Both sides derive session keys &mdash; <em>mutual authentication complete</em></li>
+        </ul>
+      </div>
+    </div>
+    <div class="flow-step" data-step="6">
+      <div class="card">
+        <h4>Network Access Granted</h4>
+        <p>FreeRADIUS sends <strong>Access-Accept</strong> to the AP/switch. The port is opened. The device is on the network with a cryptographically verified identity. VLAN assignment, ACLs, and policies can be applied based on certificate attributes.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="anim" style="margin:2.5rem 0 1rem;font-size:1.15rem">FreeRADIUS Configuration (Key Parts)</h3>
+  <div class="card-grid cols-2 anim">
+    <div class="card">
+      <h3 style="font-size:.95rem">eap.conf &mdash; EAP-TLS Module</h3>
+      <div class="code-block" style="margin:.75rem 0 0">
+        <div class="code-header"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="lang">conf</span></div>
+<pre><span class="kw">eap</span> {
+  <span class="kw">default_eap_type</span> = <span class="str">tls</span>
+
+  <span class="kw">tls-config tls-common</span> {
+    <span class="cm"># FreeRADIUS server certificate</span>
+    <span class="kw">certificate_file</span> = <span class="str">/etc/raddb/certs/server.pem</span>
+    <span class="kw">private_key_file</span> = <span class="str">/etc/raddb/certs/server.key</span>
+
+    <span class="cm"># Same CA that EST uses to sign device certs</span>
+    <span class="kw">ca_file</span> = <span class="str">/etc/raddb/certs/ca-cert.pem</span>
+  }
+}</pre>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:.95rem">The Shared Trust Anchor</h3>
+      <p style="font-size:.9rem;color:var(--text2);margin-top:.5rem">
+        The critical link between EST and FreeRADIUS is the <strong>CA certificate</strong>.
+        Both systems trust the same CA:
+      </p>
+      <ul style="margin:.75rem 0 0 1.2rem;font-size:.88rem;color:var(--text2)">
+        <li><strong>EST server</strong> uses <code>ca-key.pem</code> to <em>sign</em> device certificates</li>
+        <li><strong>FreeRADIUS</strong> uses <code>ca-cert.pem</code> to <em>verify</em> those same certificates</li>
+        <li>No direct integration needed &mdash; they share a trust anchor</li>
+      </ul>
+      <div style="margin-top:1rem;padding:.75rem;background:rgba(22,163,74,.05);border:1px solid rgba(22,163,74,.2);border-radius:8px;font-size:.82rem;color:var(--green)">
+        This is the beauty of PKI &mdash; systems that have never communicated can trust each other through a shared CA.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 6. ALL ENDPOINTS                                    -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="endpoints">
+  <span class="section-label anim">06 &middot; Endpoints</span>
+  <h2 class="section-title anim">Complete API Reference</h2>
+  <p class="section-desc anim">Every endpoint served by the Python-EST server &mdash; both RFC 7030 protocol endpoints and management APIs.</p>
+  <div class="table-wrap anim">
+    <table>
+      <thead><tr><th>#</th><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><strong>GET</strong></td><td><code>/.well-known/est/cacerts</code></td><td>None</td><td>Retrieve CA certificates</td><td>PKCS#7 base64</td></tr>
+        <tr><td>2</td><td><strong>POST</strong></td><td><code>/.well-known/est/bootstrap</code></td><td>Basic</td><td>Initial device bootstrap</td><td>Cert (30-day)</td></tr>
+        <tr><td>3</td><td><strong>POST</strong></td><td><code>/.well-known/est/simpleenroll</code></td><td>Basic / Cert</td><td>Certificate enrollment</td><td>Cert (365-day)</td></tr>
+        <tr><td>4</td><td><strong>POST</strong></td><td><code>/.well-known/est/simplereenroll</code></td><td>Basic</td><td>Certificate renewal</td><td>Cert (365-day)</td></tr>
+        <tr><td>5</td><td><strong>GET</strong></td><td><code>/health</code></td><td>None</td><td>Health check (Docker/K8s)</td><td>200 OK</td></tr>
+        <tr><td>6</td><td><strong>GET</strong></td><td><code>/</code></td><td>None</td><td>Dashboard UI</td><td>HTML</td></tr>
+        <tr><td>7</td><td><strong>GET</strong></td><td><code>/api/status</code></td><td>None</td><td>Server status + RFC info</td><td>JSON</td></tr>
+        <tr><td>8</td><td><strong>GET</strong></td><td><code>/api/stats</code></td><td>None</td><td>Enrollment statistics</td><td>JSON</td></tr>
+        <tr><td>9</td><td><strong>GET</strong></td><td><code>/api/devices</code></td><td>None</td><td>All tracked devices</td><td>JSON</td></tr>
+        <tr><td>10</td><td><strong>GET</strong></td><td><code>/api/devices/recent</code></td><td>None</td><td>Last 24h activity</td><td>JSON</td></tr>
+        <tr><td>11</td><td><strong>DELETE</strong></td><td><code>/api/devices/{id}</code></td><td>None</td><td>Remove device</td><td>204</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 7. AUTHENTICATION                                   -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="auth">
+  <span class="section-label anim">07 &middot; Authentication</span>
+  <h2 class="section-title anim">Dual Authentication System</h2>
+  <p class="section-desc anim">
+    Two independent methods, tried in order: <strong>RA Certificate</strong> first, then <strong>SRP Basic Auth</strong> as fallback.
+  </p>
+  <div class="tabs anim">
+    <button class="tab-btn active" onclick="switchTab(event,'tab-srp')">SRP / Basic Auth</button>
+    <button class="tab-btn" onclick="switchTab(event,'tab-ra')">RA Certificate</button>
+  </div>
+  <div id="tab-srp" class="tab-panel active">
+    <div class="card-grid cols-2">
+      <div class="card">
+        <h3>How SRP Works</h3>
+        <p style="font-size:.9rem;color:var(--text2)">
+          <strong>SRP</strong> (Secure Remote Password, RFC 2945) never transmits the password.
+          Instead, the server stores a <em>salt</em> and <em>verifier</em> derived from the password.
+          In our implementation, we use it through HTTP Basic Auth over TLS:
+        </p>
+        <ol style="margin:.75rem 0 0 1.2rem;font-size:.88rem;color:var(--text2)">
+          <li>Client sends <code>Authorization: Basic base64(user:pass)</code></li>
+          <li>Server extracts credentials from the header</li>
+          <li>Server hashes password with PBKDF2-HMAC-SHA256 (100,000 iterations)</li>
+          <li>Compares against stored verifier</li>
+          <li>Match = authenticated, mismatch = 401</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>User Management CLI</h3>
+        <div class="code-block" style="margin:.75rem 0 0">
+          <div class="code-header"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="lang">bash</span></div>
+<pre><span class="cm"># Add a new user</span>
+python-est user add factory_gateway <span class="op">-p</span> <span class="str">s3cureP@ss</span>
+
+<span class="cm"># List all users</span>
+python-est user list
+
+<span class="cm"># Remove a user</span>
+python-est user remove old_device
+
+<span class="cm"># Default user (auto-created on startup):</span>
+<span class="cm"># Username: estuser  Password: estpwd</span>
+<span class="cm"># Override via EST_DEFAULT_USER / EST_DEFAULT_PASS env vars</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="tab-ra" class="tab-panel">
+    <div class="card-grid cols-2">
+      <div class="card">
+        <h3>RA Certificate Authentication</h3>
+        <p style="font-size:.9rem;color:var(--text2)">
+          For automated enrollment (manufacturing lines, gateways), a <strong>Registration Authority</strong>
+          certificate is used. This is a client certificate pre-provisioned on the gateway.
+        </p>
+        <ol style="margin:.75rem 0 0 1.2rem;font-size:.88rem;color:var(--text2)">
+          <li>Gateway presents client certificate in TLS handshake</li>
+          <li>Nginx validates cert against CA and extracts fields</li>
+          <li>Nginx forwards headers to EST server:
+            <ul style="margin:.3rem 0 0 .8rem">
+              <li><code>X-SSL-Client-Verify: SUCCESS</code></li>
+              <li><code>X-SSL-Client-S-DN: CN=gateway-01</code></li>
+              <li><code>X-SSL-Client-Serial: 0A1B2C...</code></li>
+              <li><code>X-SSL-Client-Fingerprint: SHA256:...</code></li>
+            </ul>
+          </li>
+          <li>EST server checks <code>X-SSL-Client-Verify == SUCCESS</code></li>
+          <li>Request proceeds without password</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>Authentication Precedence</h3>
+        <div style="margin-top:.5rem;padding:1.25rem;background:#1e293b;border-radius:8px;font-size:.88rem;font-family:var(--mono);line-height:2;color:#e2e8f0">
+          <span style="color:#f59e0b">if</span> <span style="color:#94a3b8">X-SSL-Client-Verify == "SUCCESS"</span><br>
+          &nbsp;&nbsp;<span style="color:#22c55e">&#10003; RA cert auth &mdash; proceed</span><br>
+          <span style="color:#f59e0b">elif</span> <span style="color:#94a3b8">Authorization header present</span><br>
+          &nbsp;&nbsp;<span style="color:#22c55e">&#10003; SRP auth &mdash; verify password</span><br>
+          <span style="color:#f59e0b">else</span><br>
+          &nbsp;&nbsp;<span style="color:#ef4444">&#10007; 401 Unauthorized</span>
+        </div>
+        <p style="font-size:.82rem;color:var(--text2);margin-top:.75rem">
+          <strong>Why two methods?</strong> SRP is for interactive/manual enrollment.
+          RA certs are for automated, high-volume provisioning where you can't type a password.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 8. DASHBOARD & MONITORING                           -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="dashboard">
+  <span class="section-label anim">08 &middot; Dashboard</span>
+  <h2 class="section-title anim">Real-Time Monitoring</h2>
+  <p class="section-desc anim">
+    The built-in dashboard provides live visibility into the EST server: devices enrolled,
+    certificates issued, server uptime, and recent activity.
+  </p>
+  <div class="card-grid cols-2 anim">
+    <div class="card">
+      <h3>Dashboard Features</h3>
+      <ul style="margin-top:.5rem;font-size:.9rem;color:var(--text2);list-style:none;padding:0">
+        <li style="padding:.4rem 0;border-bottom:1px solid var(--border)"><span class="status-dot ok"></span> Live server uptime with auto-updating ticker</li>
+        <li style="padding:.4rem 0;border-bottom:1px solid var(--border)"><span class="status-dot ok"></span> Total devices, enrolled devices, active devices (24h)</li>
+        <li style="padding:.4rem 0;border-bottom:1px solid var(--border)"><span class="status-dot ok"></span> Certificates issued (bootstrap vs. enrollment breakdown)</li>
+        <li style="padding:.4rem 0;border-bottom:1px solid var(--border)"><span class="status-dot ok"></span> Request counters (total, bootstrap, enrollment, failed)</li>
+        <li style="padding:.4rem 0;border-bottom:1px solid var(--border)"><span class="status-dot ok"></span> Device table: ID, IP, status, cert serial, last activity</li>
+        <li style="padding:.4rem 0"><span class="status-dot ok"></span> Activity feed with timestamps</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Management API</h3>
+      <div class="code-block" style="margin:.75rem 0 0">
+        <div class="code-header"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="lang">json</span></div>
+<pre><span class="cm">// GET /api/stats</span>
+{
+  <span class="str">"uptime"</span>: <span class="str">"2:45:12"</span>,
+  <span class="str">"total_devices"</span>: <span class="num">47</span>,
+  <span class="str">"enrolled_devices"</span>: <span class="num">42</span>,
+  <span class="str">"active_devices"</span>: <span class="num">38</span>,
+  <span class="str">"certificates_issued"</span>: <span class="num">89</span>,
+  <span class="str">"bootstrap_certificates"</span>: <span class="num">47</span>,
+  <span class="str">"enrollment_certificates"</span>: <span class="num">42</span>,
+  <span class="str">"failed_requests"</span>: <span class="num">3</span>
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 9. DEPLOYMENT                                       -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="deploy">
+  <span class="section-label anim">09 &middot; Deployment</span>
+  <h2 class="section-title anim">Getting It Running</h2>
+  <p class="section-desc anim">From zero to a running EST server in four commands.</p>
+  <div class="card anim" style="max-width:700px">
+    <h3 style="margin-bottom:1rem">Quick Start</h3>
+    <div class="code-block" style="margin:0">
+      <div class="code-header"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="lang">bash</span></div>
+<pre><span class="cm"># 1. Install</span>
+pip install <span class="op">-e</span> .
+
+<span class="cm"># 2. Initialize (generates certs + config)</span>
+python-est init <span class="op">--host</span> <span class="str">0.0.0.0</span> <span class="op">--port</span> <span class="num">8443</span>
+
+<span class="cm"># 3. Add enrollment user</span>
+python-est user add factory_line <span class="op">-p</span> <span class="str">securePassword</span>
+
+<span class="cm"># 4. Start server</span>
+python-est start <span class="op">-c</span> config.yaml</pre>
+    </div>
+  </div>
+
+  <h3 class="anim" style="margin:2.5rem 0 1rem;font-size:1.15rem">Docker Deployment</h3>
+  <div class="card anim" style="max-width:700px">
+    <div class="code-block" style="margin:0">
+      <div class="code-header"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="lang">bash</span></div>
+<pre><span class="cm"># Build and launch EST + Nginx</span>
+docker-compose <span class="op">-f</span> docker-compose-nginx.yml up <span class="op">-d</span>
+
+<span class="cm"># Verify</span>
+curl <span class="op">-k</span> https://localhost:<span class="num">8445</span>/health
+<span class="cm"># {"status": "ok"}</span>
+
+<span class="cm"># Enroll a device</span>
+curl <span class="op">-k</span> <span class="op">-u</span> <span class="str">estuser:estpwd</span> \
+  <span class="op">-H</span> <span class="str">"Content-Type: application/pkcs10"</span> \
+  <span class="op">--data-binary</span> @device.csr \
+  https://localhost:<span class="num">8445</span>/.well-known/est/simpleenroll</pre>
+    </div>
+  </div>
+
+  <h3 class="anim" style="margin:2.5rem 0 1rem;font-size:1.15rem">Environment Variables</h3>
+  <div class="table-wrap anim">
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>NGINX_MODE</code></td><td><code>false</code></td><td>Run in HTTP mode behind Nginx proxy</td></tr>
+        <tr><td><code>PORT</code></td><td><code>8000</code></td><td>Server listen port</td></tr>
+        <tr><td><code>EST_DEFAULT_USER</code></td><td><code>estuser</code></td><td>Default bootstrap username</td></tr>
+        <tr><td><code>EST_DEFAULT_PASS</code></td><td><code>estpwd</code></td><td>Default bootstrap password</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 10. E2E TEST RESULTS                                -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="tests" style="padding-bottom:2rem">
+  <span class="section-label anim">10 &middot; Verification</span>
+  <h2 class="section-title anim">End-to-End Test Results</h2>
+  <p class="section-desc anim">All 9 core scenarios verified against a live server instance.</p>
+  <div class="table-wrap anim">
+    <table>
+      <thead><tr><th>#</th><th>Test</th><th>Expected</th><th>Actual</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>GET /health</td><td>200 OK</td><td>200 OK</td><td><span class="status-dot ok"></span>PASS</td></tr>
+        <tr><td>2</td><td>GET /.well-known/est/cacerts</td><td>PKCS#7 blob</td><td>1,348 byte PKCS#7</td><td><span class="status-dot ok"></span>PASS</td></tr>
+        <tr><td>3</td><td>POST /.well-known/est/bootstrap</td><td>Signed cert</td><td>1,316 byte cert</td><td><span class="status-dot ok"></span>PASS</td></tr>
+        <tr><td>4</td><td>POST /.well-known/est/simpleenroll</td><td>Signed cert</td><td>1,328 byte cert</td><td><span class="status-dot ok"></span>PASS</td></tr>
+        <tr><td>5</td><td>GET /api/devices (tracking)</td><td>Device listed</td><td>device-003 status=enrolled</td><td><span class="status-dot ok"></span>PASS</td></tr>
+        <tr><td>6</td><td>GET /api/stats</td><td>Cert count</td><td>3 certs issued</td><td><span class="status-dot ok"></span>PASS</td></tr>
+        <tr><td>7</td><td>GET / (dashboard)</td><td>HTML renders</td><td>HTML with device data</td><td><span class="status-dot ok"></span>PASS</td></tr>
+        <tr><td>8</td><td>GET /api/status</td><td>RFC info</td><td>protocol=RFC 7030</td><td><span class="status-dot ok"></span>PASS</td></tr>
+        <tr><td>9</td><td>DELETE /api/devices/{id}</td><td>204 deleted</td><td>Device removed</td><td><span class="status-dot ok"></span>PASS</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="anim" style="margin:2rem 0 1rem;font-size:1.15rem">Bugs Found &amp; Fixed During E2E</h3>
+  <div class="card-grid cols-3 anim">
+    <div class="card" style="border-left:3px solid var(--red)">
+      <h3 style="font-size:.9rem">Uptime Parser Crash</h3>
+      <p style="font-size:.82rem">Dashboard crashed when uptime exceeded 24 hours (<code>"64 days, 8:12:34"</code>). Parser only expected <code>H:MM:SS</code> format. Fixed with regex that handles both.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--red)">
+      <h3 style="font-size:.9rem">CLI Emoji on Windows</h3>
+      <p style="font-size:.82rem">Rich panels with emoji characters crashed on Windows <code>cp1252</code> console encoding. Removed emoji from CLI output; plain text works universally.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--red)">
+      <h3 style="font-size:.9rem">Auth on Fresh Install</h3>
+      <p style="font-size:.82rem"><code>ensure_default_user()</code> was only called from the dashboard endpoint. Fresh server returned 401 on <code>/bootstrap</code>. Moved to startup + enrollment routes.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 11. GLOSSARY                                        -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section id="glossary">
+  <span class="section-label anim">11 &middot; Glossary</span>
+  <h2 class="section-title anim">Key Terms</h2>
+  <div class="glossary-grid anim">
+    <div class="glossary-item"><div class="term">EST</div><div class="def">Enrollment over Secure Transport. RFC 7030 protocol for certificate management over HTTPS.</div></div>
+    <div class="glossary-item"><div class="term">PKI</div><div class="def">Public Key Infrastructure. The system of CAs, certificates, and keys that establishes digital trust.</div></div>
+    <div class="glossary-item"><div class="term">CA</div><div class="def">Certificate Authority. The trusted entity that signs certificates. Holds the root private key.</div></div>
+    <div class="glossary-item"><div class="term">CSR</div><div class="def">Certificate Signing Request (PKCS#10). A device's formal request for a certificate, containing its public key and identity.</div></div>
+    <div class="glossary-item"><div class="term">PKCS#7</div><div class="def">Cryptographic Message Syntax container format. Used by EST to deliver certificates. Also called CMS.</div></div>
+    <div class="glossary-item"><div class="term">EAP-TLS</div><div class="def">Extensible Authentication Protocol &mdash; Transport Layer Security. Certificate-based Wi-Fi/802.1X authentication. The strongest EAP method.</div></div>
+    <div class="glossary-item"><div class="term">802.1X</div><div class="def">IEEE standard for port-based network access control. The framework that EAP runs inside of for Wi-Fi/wired auth.</div></div>
+    <div class="glossary-item"><div class="term">FreeRADIUS</div><div class="def">Open-source RADIUS server. Handles 802.1X authentication, validates device certificates during EAP-TLS handshake.</div></div>
+    <div class="glossary-item"><div class="term">SRP</div><div class="def">Secure Remote Password (RFC 2945). Password authentication protocol where the password is never transmitted.</div></div>
+    <div class="glossary-item"><div class="term">RA</div><div class="def">Registration Authority. A trusted intermediary (like a gateway) with its own certificate, authorized to enroll devices on behalf of others.</div></div>
+    <div class="glossary-item"><div class="term">TLS Termination</div><div class="def">Nginx decrypts HTTPS traffic, inspects client certificates, then forwards plain HTTP to the backend. The backend never handles TLS directly.</div></div>
+    <div class="glossary-item"><div class="term">Mutual TLS (mTLS)</div><div class="def">Both client and server present certificates. EAP-TLS is a form of mTLS &mdash; the device and RADIUS server both prove identity.</div></div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p><strong>Python-EST</strong> &mdash; RFC 7030 Enrollment over Secure Transport</p>
+  <p style="margin-top:.5rem">Built with FastAPI &middot; Deployed with Docker + Nginx &middot; Secured with SRP + RA Certificates</p>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT                                          -->
+<!-- ═══════════════════════════════════════════════════ -->
+<script>
+// ── Scroll Animations ──────────────────────────────────
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible') })
+}, { threshold: 0.12 });
+document.querySelectorAll('.anim,.anim-left,.anim-right,.anim-scale').forEach(el => observer.observe(el));
+
+// ── Progress Bar ───────────────────────────────────────
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+});
+
+// ── Nav Active State ───────────────────────────────────
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('nav .links a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => { if (scrollY >= s.offsetTop - 120) current = s.id });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+
+// ── Tabs ───────────────────────────────────────────────
+function switchTab(e, id) {
+  const container = e.target.closest('section') || document.body;
+  container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById(id).classList.add('active');
+}
+
+// ── Accordion ──────────────────────────────────────────
+function toggleAccordion(el) { el.classList.toggle('open') }
+
+// ── Cert Chain Interactive ─────────────────────────────
+const certData = {
+  root: {
+    title: 'Root CA Certificate',
+    fields: [
+      ['Subject', 'CN=Python-EST Root CA, O=EST Server, C=US'],
+      ['Issuer', 'Self-signed (Subject == Issuer)'],
+      ['Key', 'RSA 2048-bit'],
+      ['Validity', '10 years'],
+      ['Key Usage', 'Certificate Sign, CRL Sign'],
+      ['File', 'certs/ca-cert.pem (public) + certs/ca-key.pem (private)'],
+      ['Role', 'Trust anchor for EST and FreeRADIUS']
+    ]
+  },
+  server: {
+    title: 'EST Server / Nginx TLS Certificate',
+    fields: [
+      ['Subject', 'CN=est-server.local, O=EST Server'],
+      ['Issuer', 'CN=Python-EST Root CA'],
+      ['Key', 'RSA 2048-bit'],
+      ['Validity', '1 year'],
+      ['Key Usage', 'Digital Signature, Key Encipherment'],
+      ['Extended Key Usage', 'TLS Web Server Authentication'],
+      ['File', 'certs/server.crt + certs/server.key'],
+      ['Role', 'Secures HTTPS connection to EST server']
+    ]
+  },
+  device: {
+    title: 'Device Certificate (Issued by EST)',
+    fields: [
+      ['Subject', 'CN=pump-003.factory.local (from CSR)'],
+      ['Issuer', 'CN=Python-EST Root CA'],
+      ['Key', 'RSA 2048-bit (generated on device)'],
+      ['Validity', '365 days (enrollment) or 30 days (bootstrap)'],
+      ['Key Usage', 'Digital Signature, Key Encipherment'],
+      ['Extended Key Usage', 'TLS Web Client Auth, TLS Web Server Auth'],
+      ['Serial', 'Cryptographically random (unique per cert)'],
+      ['Role', 'Device identity for EAP-TLS network authentication']
+    ]
+  }
+};
+
+function showCertDetail(el, key) {
+  document.querySelectorAll('.cert-node').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  const d = certData[key];
+  const box = document.getElementById('cert-detail-box');
+  box.innerHTML = '<h4>' + d.title + '</h4>' +
+    d.fields.map(f => '<div style="display:flex;gap:.5rem;margin:.3rem 0;font-size:.84rem">' +
+      '<span style="color:var(--accent);font-weight:600;min-width:110px;flex-shrink:0">' + f[0] + '</span>' +
+      '<span style="color:var(--text2);font-family:var(--mono);font-size:.8rem;word-break:break-all">' + f[1] + '</span></div>').join('');
+  box.classList.add('active');
+}
+
+// ── Entity Detail (Big Picture) ────────────────────────
+const entityData = {
+  device: {
+    title: 'IoT Device',
+    role: 'The Supplicant &mdash; the thing that needs a certificate and network access',
+    desc: '<p>This is any device on your factory floor, office, or field deployment &mdash; a pump, sensor, gateway, or embedded controller. It has a unique identity like <strong>pump-003.factory.local</strong>.</p>' +
+      '<p><strong>What it does, step by step:</strong></p>' +
+      '<ul>' +
+      '<li>Generates an <strong>RSA 2048-bit keypair</strong> on-device. The private key never leaves the hardware.</li>' +
+      '<li>Builds a <strong>CSR</strong> (Certificate Signing Request) containing its identity and public key, then signs it with its private key to prove it owns the keypair.</li>' +
+      '<li>Sends the CSR to the EST server over HTTPS, authenticating with a shared password or through a gateway (RA).</li>' +
+      '<li>Receives a signed certificate back. Stores it alongside the private key and the CA certificate.</li>' +
+      '<li>When it connects to Wi-Fi, it presents this certificate during the <strong>EAP-TLS handshake</strong> &mdash; no passwords involved, just cryptographic proof of identity.</li>' +
+      '</ul>' +
+      '<p style="margin-top:.5rem"><strong>What it holds after enrollment:</strong> Private key + Signed certificate + CA certificate. These three files are everything it needs to authenticate on any network that trusts the same CA.</p>'
+  },
+  requester: {
+    title: 'Requester / RA Gateway',
+    role: 'The Registration Authority &mdash; a trusted intermediary that enrolls devices on their behalf',
+    desc: '<p>On a manufacturing line, individual devices may not have a screen, keyboard, or even network access during production. A <strong>Registration Authority (RA) gateway</strong> handles enrollment for them.</p>' +
+      '<p><strong>How it works:</strong></p>' +
+      '<ul>' +
+      '<li>The gateway has its own <strong>RA certificate</strong> &mdash; a client cert signed by the same CA, pre-provisioned during setup.</li>' +
+      '<li>When a new device rolls off the line, the gateway generates a CSR for it (or the device generates one and hands it to the gateway).</li>' +
+      '<li>The gateway authenticates to the EST server using its <strong>client certificate</strong> (TLS mutual authentication via Nginx). No password needed.</li>' +
+      '<li>The EST server checks the <code>X-SSL-Client-Verify: SUCCESS</code> header from Nginx and trusts the request.</li>' +
+      '<li>The signed device certificate comes back through the gateway, which provisions it onto the device.</li>' +
+      '</ul>' +
+      '<p style="margin-top:.5rem"><strong>Why it matters:</strong> This enables <em>zero-touch provisioning</em> at scale. A factory line can enroll thousands of devices per day without anyone typing a password.</p>'
+  },
+  est: {
+    title: 'Python-EST Server',
+    role: 'The EST Protocol Server &mdash; handles enrollment requests, signs certificates, tracks devices',
+    desc: '<p>This is the core of everything we built. A <strong>FastAPI</strong> application implementing the <strong>RFC 7030 EST protocol</strong>. It sits behind Nginx (which handles TLS) and exposes the standard <code>/.well-known/est/</code> endpoints.</p>' +
+      '<p><strong>What happens inside when a request arrives:</strong></p>' +
+      '<ul>' +
+      '<li><strong>Authentication:</strong> Checks for an RA client certificate first (via Nginx headers), falls back to SRP/Basic Auth. If neither passes, returns 401.</li>' +
+      '<li><strong>CSR Validation:</strong> Parses the PKCS#10 CSR, verifies the signature (proof of possession), extracts the subject identity.</li>' +
+      '<li><strong>Certificate Signing:</strong> Passes the validated CSR to the internal CA module. The CA signs it with <code>ca-key.pem</code> using SHA-256.</li>' +
+      '<li><strong>PKCS#7 Packaging:</strong> Wraps the signed certificate in a degenerate PKCS#7 envelope (the format EST requires).</li>' +
+      '<li><strong>Device Tracking:</strong> Records the device ID, IP address, certificate serial, enrollment status, and timestamp in <code>devices.json</code>.</li>' +
+      '<li><strong>Response:</strong> Returns the PKCS#7 blob as base64 text. The device extracts its certificate from this.</li>' +
+      '</ul>' +
+      '<p style="margin-top:.5rem"><strong>Port 8000</strong> (HTTP, internal only). Nginx on port <strong>8445</strong> handles HTTPS and forwards to it.</p>'
+  },
+  ca: {
+    title: 'Certificate Authority',
+    role: 'The Root of Trust &mdash; the single entity whose signature everyone trusts',
+    desc: '<p>The CA is the foundation of the entire PKI system. It holds the <strong>root private key</strong> (<code>ca-key.pem</code>) and signs every device certificate. Anyone who has the <strong>CA public certificate</strong> (<code>ca-cert.pem</code>) can verify whether a given certificate was issued by this CA.</p>' +
+      '<p><strong>How it connects to everything:</strong></p>' +
+      '<ul>' +
+      '<li><strong>EST server</strong> uses <code>ca-key.pem</code> to <em>sign</em> new certificates. This is the only place the private key is used.</li>' +
+      '<li><strong>FreeRADIUS</strong> uses <code>ca-cert.pem</code> to <em>verify</em> device certificates during EAP-TLS. It never needs the private key.</li>' +
+      '<li><strong>Devices</strong> use <code>ca-cert.pem</code> to verify the FreeRADIUS server certificate during the TLS handshake.</li>' +
+      '</ul>' +
+      '<p style="margin-top:.5rem"><strong>This is the key insight:</strong> The EST server and FreeRADIUS never need to communicate directly. They just need to trust the same CA. The CA certificate is the <em>shared trust anchor</em> that ties the entire system together.</p>' +
+      '<p><strong>Security:</strong> If <code>ca-key.pem</code> is compromised, the entire PKI is compromised. In production, this key should be stored in an HSM (Hardware Security Module).</p>'
+  },
+  freeradius: {
+    title: 'FreeRADIUS',
+    role: 'The Authentication Server &mdash; decides who gets network access based on certificates',
+    desc: '<p>FreeRADIUS is an open-source <strong>RADIUS server</strong> that handles <strong>802.1X network authentication</strong>. When a device tries to connect to an enterprise Wi-Fi network or a secured switch port, FreeRADIUS is the one that decides whether to let it in.</p>' +
+      '<p><strong>What happens during EAP-TLS:</strong></p>' +
+      '<ul>' +
+      '<li>The access point (AP) or switch receives the device\'s connection attempt and forwards it to FreeRADIUS as a RADIUS <code>Access-Request</code>.</li>' +
+      '<li>FreeRADIUS starts an <strong>EAP-TLS handshake</strong> with the device (relayed through the AP using EAP frames).</li>' +
+      '<li>FreeRADIUS sends its own server certificate to the device. The device verifies it against the CA cert.</li>' +
+      '<li>The device sends its EST-issued certificate. FreeRADIUS verifies it against the same <code>ca-cert.pem</code>.</li>' +
+      '<li>Both sides derive session keys. <strong>Mutual authentication is complete</strong> &mdash; both sides have proven their identity.</li>' +
+      '<li>FreeRADIUS sends <code>Access-Accept</code> back to the AP. The port is opened, VLAN is assigned, and the device is online.</li>' +
+      '</ul>' +
+      '<p style="margin-top:.5rem"><strong>Configuration:</strong> FreeRADIUS only needs <code>ca-cert.pem</code> (to verify device certs) and its own server cert/key (to prove its identity to devices). It has no knowledge of the EST server at all.</p>'
+  },
+  ap: {
+    title: 'Access Point / Switch',
+    role: 'The Authenticator &mdash; the network device that enforces 802.1X before granting access',
+    desc: '<p>The AP or switch is the <strong>gatekeeper</strong>. It sits between the device and the network. In 802.1X terminology, it\'s called the <em>authenticator</em>.</p>' +
+      '<p><strong>Its role is simple but critical:</strong></p>' +
+      '<ul>' +
+      '<li>When a device tries to connect, the AP <strong>blocks all traffic</strong> except EAP authentication frames.</li>' +
+      '<li>It relays EAP messages between the device (supplicant) and FreeRADIUS (authentication server). It doesn\'t understand the certificates &mdash; it just forwards the packets.</li>' +
+      '<li>When FreeRADIUS replies with <code>Access-Accept</code>, the AP opens the port and the device can send normal traffic.</li>' +
+      '<li>If FreeRADIUS replies with <code>Access-Reject</code>, the port stays closed. The device is not allowed on the network.</li>' +
+      '</ul>' +
+      '<p style="margin-top:.5rem"><strong>No PKI knowledge needed:</strong> The AP knows nothing about certificates or CAs. It just knows the address of the FreeRADIUS server and a shared secret for the RADIUS protocol.</p>'
+  }
+};
+
+function showEntityDetail(key) {
+  // Highlight the clicked entity in SVG
+  document.querySelectorAll('.entity-box').forEach(el => el.classList.remove('active'));
+  const clicked = document.querySelector('.entity-box[data-entity="' + key + '"]');
+  if (clicked) clicked.classList.add('active');
+
+  const d = entityData[key];
+  const box = document.getElementById('entity-detail');
+  box.innerHTML = '<h4>' + d.title + '</h4><div class="role">' + d.role + '</div>' + d.desc;
+  box.classList.add('active');
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Animated Counters ──────────────────────────────────
+const countObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    const el = e.target;
+    const target = parseInt(el.dataset.count);
+    const duration = 1500;
+    const start = performance.now();
+    function tick(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.floor(eased * target).toLocaleString();
+      if (progress < 1) requestAnimationFrame(tick);
+      else el.textContent = target.toLocaleString();
+    }
+    requestAnimationFrame(tick);
+    countObserver.unobserve(el);
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('[data-count]').forEach(el => countObserver.observe(el));
+</script>
+</body>
+</html>
