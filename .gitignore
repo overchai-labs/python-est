@@ -66,6 +66,9 @@ production.yaml
 # Claude Code
 .claude/
 
+# Notes and documentation (working files)
+notes/
+
 # Misc
 tmp/
 temp/
